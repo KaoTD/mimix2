@@ -2681,80 +2681,81 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 static int mdss_panel_parse_display_timings(struct device_node *np,
 		struct mdss_panel_data *panel_data)
 {
-	struct mdss_dsi_ctrl_pdata *ctrl;
-	struct dsi_panel_timing *modedb;
-	struct device_node *timings_np;
-	struct device_node *entry;
-	int num_timings, rc;
-	int i = 0, active_ndx = 0;
-	bool default_timing = false;
 
-	ctrl = container_of(panel_data, struct mdss_dsi_ctrl_pdata, panel_data);
+        struct mdss_dsi_ctrl_pdata *ctrl;
+        struct dsi_panel_timing *modedb;
+        struct device_node *timings_np;
+        struct device_node *entry;
+        int num_timings, rc;
+        int i = 0, active_ndx = 0;
+        bool default_timing = false;
 
-	INIT_LIST_HEAD(&panel_data->timings_list);
+        ctrl = container_of(panel_data, struct mdss_dsi_ctrl_pdata, panel_data);
 
-	timings_np = of_get_child_by_name(np, "qcom,mdss-dsi-display-timings");
-	if (!timings_np) {
-		struct dsi_panel_timing *pt;
+        INIT_LIST_HEAD(&panel_data->timings_list);
 
-		pt = kzalloc(sizeof(*pt), GFP_KERNEL);
-		if (!pt)
-			return -ENOMEM;
+        timings_np = of_get_child_by_name(np, "qcom,mdss-dsi-display-timings");
+        if (!timings_np) {
+       	 struct dsi_panel_timing *pt;
+       	 pt = kzalloc(sizeof(*pt), GFP_KERNEL);
 
-		/*
-		 * display timings node is not available, fallback to reading
-		 * timings directly from root node instead
-		 */
-		pr_debug("reading display-timings from panel node\n");
-		rc = mdss_dsi_panel_timing_from_dt(np, pt, panel_data);
-		if (!rc) {
-			mdss_dsi_panel_config_res_properties(np, pt,
-					panel_data, true);
-			rc = mdss_dsi_panel_timing_switch(ctrl, &pt->timing);
-		} else {
-			kfree(pt);
-		}
-		return rc;
-	}
+       	 if (!pt)
+       	 	return -ENOMEM;
 
-	num_timings = of_get_child_count(timings_np);
-	if (num_timings == 0) {
-		pr_err("no timings found within display-timings\n");
-		rc = -EINVAL;
-		goto exit;
-	}
+       	 /*
+       	  * display timings node is not available, fallback to reading
+       	  * timings directly from root node instead
+       	  */
+       	 pr_debug("reading display-timings from panel node\n");
+       	 rc = mdss_dsi_panel_timing_from_dt(np, pt, panel_data);
+       	 if (!rc) {
+       		 mdss_dsi_panel_config_res_properties(np, pt,
+       				 panel_data, true);
+       		 rc = mdss_dsi_panel_timing_switch(ctrl, &pt->timing);
+       	 } else {
+       	 	kfree(pt);
+       	 }
+       	 return rc;
+        }
 
-	modedb = kcalloc(num_timings, sizeof(*modedb), GFP_KERNEL);
-	if (!modedb) {
-		rc = -ENOMEM;
-		goto exit;
-	}
+        num_timings = of_get_child_count(timings_np);
+        if (num_timings == 0) {
+       	 pr_err("no timings found within display-timings\n");
+       	 rc = -EINVAL;
+       	 goto exit;
+        }
 
-	for_each_child_of_node(timings_np, entry) {
-		rc = mdss_dsi_panel_timing_from_dt(entry, (modedb + i),
-				panel_data);
-		if (rc) {
-			kfree(modedb);
-			goto exit;
-		}
+        modedb = kcalloc(num_timings, sizeof(*modedb), GFP_KERNEL);
+        if (!modedb) {
+       	 rc = -ENOMEM;
+       	 goto exit;
+        }
 
-		default_timing = of_property_read_bool(entry,
-				"qcom,mdss-dsi-timing-default");
-		if (default_timing)
-			active_ndx = i;
+        for_each_child_of_node(timings_np, entry) {
+       	 rc = mdss_dsi_panel_timing_from_dt(entry, (modedb + i),
+       			 panel_data);
+       	 if (rc) {
+       		 kfree(modedb);
+       		 goto exit;
+       	 }
 
-		mdss_dsi_panel_config_res_properties(entry, (modedb + i),
-				panel_data, default_timing);
+       	 default_timing = of_property_read_bool(entry,
+       			 "qcom,mdss-dsi-timing-default");
+       	 if (default_timing)
+       		 active_ndx = i;
 
-		list_add(&modedb[i].timing.list,
-				&panel_data->timings_list);
-		i++;
-	}
+       	 mdss_dsi_panel_config_res_properties(entry, (modedb + i),
+       			 panel_data, default_timing);
 
-	/* Configure default timing settings */
-	rc = mdss_dsi_panel_timing_switch(ctrl, &modedb[active_ndx].timing);
-	if (rc)
-		pr_err("unable to configure default timing settings\n");
+       	 list_add(&modedb[i].timing.list,
+       			 &panel_data->timings_list);
+       	 i++;
+        }
+
+        /* Configure default timing settings */
+        rc = mdss_dsi_panel_timing_switch(ctrl, &modedb[active_ndx].timing);
+        if (rc)
+       	 pr_err("unable to configure default timing settings\n");
 
 exit:
 	of_node_put(timings_np);
