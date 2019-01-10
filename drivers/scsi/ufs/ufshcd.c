@@ -9083,6 +9083,7 @@ EXPORT_SYMBOL(ufshcd_runtime_suspend);
  */
 int ufshcd_runtime_resume(struct ufs_hba *hba)
 {
+
 	int ret = 0;
 	ktime_t start = ktime_get();
 
@@ -9837,6 +9838,7 @@ out:
 			   &hba->clk_scaling.suspend_work);
 
 	return ret;
+
 }
 
 static int ufshcd_devfreq_get_dev_status(struct device *dev,
