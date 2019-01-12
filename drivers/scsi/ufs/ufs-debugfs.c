@@ -857,8 +857,8 @@ static int ufsdbg_health_desc_show(struct seq_file *file, void *data)
 {
 	struct ufs_hba *hba = file->private;
 	int err = 0;
-	int buff_len = QUERY_DESC_HEALTH_MAX_SIZE;
-	u8 desc_buf[QUERY_DESC_HEALTH_MAX_SIZE];
+	int buff_len = QUERY_DESC_HEALTH_DEF_SIZE;
+	u8 desc_buf[QUERY_DESC_HEALTH_DEF_SIZE];
 
 	struct desc_field_offset health_desc_field_name[] = {
 		{"bLength",		0x00, BYTE},
