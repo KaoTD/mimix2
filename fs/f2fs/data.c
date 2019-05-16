@@ -465,8 +465,13 @@ int f2fs_submit_page_bio(struct f2fs_io_info *fio)
 
 	bio_set_op_attrs(bio, fio->op, fio->op_flags);
 
+<<<<<<< HEAD
 	inc_page_count(fio->sbi, is_read_io(fio->op) ?
 			__read_io_type(page): WB_DATA_TYPE(fio->page));
+=======
+	if (!is_read_io(fio->op))
+		inc_page_count(fio->sbi, WB_DATA_TYPE(fio->page));
+>>>>>>> 80cd89d61f95b74260338729e8c345e162933e2b
 
 	__submit_bio(fio->sbi, bio, fio->type);
 	return 0;
