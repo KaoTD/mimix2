@@ -287,6 +287,7 @@ void *perf_aux_output_begin(struct perf_output_handle *handle,
 	if (!atomic_read(&rb->aux_mmap_count))
 		goto err_put;
 
+
 	/*
 	 * Nesting is not supported for AUX area, make sure nested
 	 * writers are caught early
@@ -485,6 +486,7 @@ static void __rb_free_aux(struct ring_buffer *rb)
 	 */
 	WARN_ON_ONCE(in_atomic());
 
+
 	if (rb->aux_priv) {
 		rb->free_aux(rb->aux_priv);
 		rb->free_aux = NULL;
@@ -638,6 +640,9 @@ struct ring_buffer *rb_alloc(int nr_pages, long watermark, int cpu, int flags)
 
 	size = sizeof(struct ring_buffer);
 	size += nr_pages * sizeof(void *);
+
+	if (order_base_2(size) >= PAGE_SHIFT+MAX_ORDER)
+		goto fail;
 
 	rb = kzalloc(size, GFP_KERNEL);
 	if (!rb)

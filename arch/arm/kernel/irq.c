@@ -31,7 +31,6 @@
 #include <linux/smp.h>
 #include <linux/init.h>
 #include <linux/seq_file.h>
-#include <linux/ratelimit.h>
 #include <linux/errno.h>
 #include <linux/list.h>
 #include <linux/kallsyms.h>
@@ -120,6 +119,7 @@ int __init arch_probe_nr_irqs(void)
 	return nr_irqs;
 }
 #endif
+<<<<<<< HEAD
 
 #ifdef CONFIG_HOTPLUG_CPU
 static bool migrate_one_irq(struct irq_desc *desc)
@@ -189,3 +189,5 @@ void migrate_irqs(void)
 	local_irq_restore(flags);
 }
 #endif /* CONFIG_HOTPLUG_CPU */
+=======
+>>>>>>> 71cb827c0249e87c62139bd4d5897cf59f51cb55
