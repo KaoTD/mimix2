@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -62,8 +62,6 @@
 #include "sys_startup.h"
 #include "cds_concurrency.h"
 #include "nan_datapath.h"
-
-#define NO_SESSION 0xff
 
 static void __lim_init_scan_vars(tpAniSirGlobal pMac)
 {
@@ -609,6 +607,8 @@ void lim_cleanup(tpAniSirGlobal pMac)
 	}
 
 	if (pMac->lim.gpLimMlmSetKeysReq != NULL) {
+		qdf_mem_zero(pMac->lim.gpLimMlmSetKeysReq,
+			     sizeof(tLimMlmSetKeysReq));
 		qdf_mem_free(pMac->lim.gpLimMlmSetKeysReq);
 		pMac->lim.gpLimMlmSetKeysReq = NULL;
 	}
@@ -1535,8 +1535,6 @@ lim_detect_change_in_ap_capabilities(tpAniSirGlobal pMac,
 	       SIR_MAC_GET_ESS(psessionEntry->limCurrentBssCaps)) ||
 	      (SIR_MAC_GET_PRIVACY(apNewCaps.capabilityInfo) !=
 	       SIR_MAC_GET_PRIVACY(psessionEntry->limCurrentBssCaps)) ||
-	      (SIR_MAC_GET_SHORT_PREAMBLE(apNewCaps.capabilityInfo) !=
-	       SIR_MAC_GET_SHORT_PREAMBLE(psessionEntry->limCurrentBssCaps)) ||
 	      (SIR_MAC_GET_QOS(apNewCaps.capabilityInfo) !=
 	       SIR_MAC_GET_QOS(psessionEntry->limCurrentBssCaps)) ||
 	      ((newChannel != psessionEntry->currentOperChannel) &&
@@ -2434,6 +2432,7 @@ void lim_update_lost_link_info(tpAniSirGlobal mac, tpPESession session,
 	lim_sys_process_mmh_msg_api(mac, &mmh_msg, ePROT);
 }
 
+#ifdef TRACE_RECORD
 QDF_STATUS pe_acquire_global_lock(tAniSirLim *psPe)
 {
 	QDF_STATUS status = QDF_STATUS_E_INVAL;
@@ -2459,6 +2458,7 @@ QDF_STATUS pe_release_global_lock(tAniSirLim *psPe)
 	}
 	return status;
 }
+#endif
 
 /**
  * lim_mon_init_session() - create PE session for monitor mode operation

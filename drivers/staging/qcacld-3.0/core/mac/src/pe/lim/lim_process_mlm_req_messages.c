@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1251,10 +1251,6 @@ static void lim_process_mlm_auth_req(tpAniSirGlobal mac_ctx, uint32_t *msg)
 			goto end;
 		} else {
 			pe_debug("lim_process_mlm_auth_req_sae is successful");
-			lim_diag_event_report(mac_ctx,
-					      WLAN_PE_DIAG_AUTH_ALGO_NUM,
-					      session, eSIR_SUCCESS,
-					      eSIR_AUTH_TYPE_SAE);
 			return;
 		}
 	} else
@@ -1271,9 +1267,6 @@ static void lim_process_mlm_auth_req(tpAniSirGlobal mac_ctx, uint32_t *msg)
 		auth_frame_body.authAlgoNumber =
 		(uint8_t) mac_ctx->lim.gpLimMlmAuthReq->authType;
 	}
-	lim_diag_event_report(mac_ctx, WLAN_PE_DIAG_AUTH_ALGO_NUM,
-			      session, eSIR_SUCCESS,
-			      auth_frame_body.authAlgoNumber);
 
 	/* Prepare & send Authentication frame */
 	auth_frame_body.authTransactionSeqNumber = SIR_MAC_AUTH_FRAME_1;
@@ -2107,6 +2100,8 @@ lim_process_mlm_set_keys_req(tpAniSirGlobal mac_ctx, uint32_t *msg_buf)
 
 	mlm_set_keys_req = (tLimMlmSetKeysReq *) msg_buf;
 	if (mac_ctx->lim.gpLimMlmSetKeysReq != NULL) {
+		qdf_mem_zero(mac_ctx->lim.gpLimMlmSetKeysReq,
+			     sizeof(tLimMlmSetKeysReq));
 		qdf_mem_free(mac_ctx->lim.gpLimMlmSetKeysReq);
 		mac_ctx->lim.gpLimMlmSetKeysReq = NULL;
 	}
@@ -2116,6 +2111,8 @@ lim_process_mlm_set_keys_req(tpAniSirGlobal mac_ctx, uint32_t *msg_buf)
 				mlm_set_keys_req->sessionId);
 	if (NULL == session) {
 		pe_err("session does not exist for given sessionId");
+		qdf_mem_zero(mlm_set_keys_req->key, sizeof(tSirKeys));
+		mlm_set_keys_req->numKeys = 0;
 		qdf_mem_free(mlm_set_keys_req);
 		mac_ctx->lim.gpLimMlmSetKeysReq = NULL;
 		return;

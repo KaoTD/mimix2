@@ -581,7 +581,6 @@ typedef enum {
 	WLAN_PE_DIAG_DISASSOC_FRAME_EVENT,
 	WLAN_PE_DIAG_AUTH_ACK_EVENT,
 	WLAN_PE_DIAG_ASSOC_ACK_EVENT,
-	WLAN_PE_DIAG_AUTH_ALGO_NUM,
 } WLAN_PE_DIAG_EVENT_TYPE;
 
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
@@ -609,14 +608,14 @@ bool lim_check_disassoc_deauth_ack_pending(tpAniSirGlobal pMac,
 
 #ifdef WLAN_FEATURE_11W
 void lim_pmf_sa_query_timer_handler(void *pMacGlobal, uint32_t param);
-#endif
-
 void lim_set_protected_bit(tpAniSirGlobal pMac,
 		tpPESession psessionEntry,
 		tSirMacAddr peer, tpSirMacMgmtHdr pMacHdr);
-
-#ifdef WLAN_FEATURE_11W
 void lim_pmf_comeback_timer_callback(void *context);
+#else
+static inline void lim_set_protected_bit(tpAniSirGlobal pMac,
+	tpPESession psessionEntry,
+	tSirMacAddr peer, tpSirMacMgmtHdr pMacHdr) {}
 #endif /* WLAN_FEATURE_11W */
 
 void lim_set_ht_caps(tpAniSirGlobal p_mac,

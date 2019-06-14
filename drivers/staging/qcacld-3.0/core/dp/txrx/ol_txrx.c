@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011-2019 The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -132,6 +132,7 @@ static void ol_txrx_peer_dec_ref_cnt(struct ol_txrx_peer_t *peer);
 void
 ol_txrx_copy_mac_addr_raw(ol_txrx_vdev_handle vdev, uint8_t *bss_addr)
 {
+	qdf_spin_lock_bh(&vdev->pdev->last_real_peer_mutex);
 	if (bss_addr && vdev->last_real_peer &&
 	    !qdf_mem_cmp((u8 *)bss_addr,
 			     vdev->last_real_peer->mac_addr.raw,
@@ -139,6 +140,7 @@ ol_txrx_copy_mac_addr_raw(ol_txrx_vdev_handle vdev, uint8_t *bss_addr)
 		qdf_mem_copy(vdev->hl_tdls_ap_mac_addr.raw,
 			     vdev->last_real_peer->mac_addr.raw,
 			     OL_TXRX_MAC_ADDR_LEN);
+	qdf_spin_unlock_bh(&vdev->pdev->last_real_peer_mutex);
 }
 
 /**
@@ -156,15 +158,14 @@ ol_txrx_add_last_real_peer(ol_txrx_pdev_handle pdev,
 {
 	ol_txrx_peer_handle peer;
 
-	if (vdev->last_real_peer == NULL) {
-		peer = NULL;
-		peer = ol_txrx_find_peer_by_addr(pdev,
-				vdev->hl_tdls_ap_mac_addr.raw,
-				peer_id);
-		if (peer && (peer->peer_ids[0] !=
-					HTT_INVALID_PEER_ID))
-			vdev->last_real_peer = peer;
-	}
+	peer = ol_txrx_find_peer_by_addr(pdev,
+					 vdev->hl_tdls_ap_mac_addr.raw,
+					 peer_id);
+	qdf_spin_lock_bh(&pdev->last_real_peer_mutex);
+	if (!vdev->last_real_peer && peer &&
+	    peer->peer_ids[0] != HTT_INVALID_PEER_ID)
+		vdev->last_real_peer = peer;
+	qdf_spin_unlock_bh(&pdev->last_real_peer_mutex);
 }
 
 /**
@@ -199,14 +200,18 @@ ol_txrx_update_last_real_peer(
 {
 	struct ol_txrx_vdev_t *vdev;
 
+	if (!restore_last_peer)
+		return;
+
 	vdev = peer->vdev;
-	if (restore_last_peer && (vdev->last_real_peer == NULL)) {
-		peer = NULL;
-		peer = ol_txrx_find_peer_by_addr(pdev,
-				vdev->hl_tdls_ap_mac_addr.raw, peer_id);
-		if (peer && (peer->peer_ids[0] != HTT_INVALID_PEER_ID))
-			vdev->last_real_peer = peer;
-	}
+	peer = ol_txrx_find_peer_by_addr(pdev,
+					 vdev->hl_tdls_ap_mac_addr.raw,
+					 peer_id);
+	qdf_spin_lock_bh(&pdev->last_real_peer_mutex);
+	if (!vdev->last_real_peer && peer &&
+	    (peer->peer_ids[0] != HTT_INVALID_PEER_ID))
+		vdev->last_real_peer = peer;
+	qdf_spin_unlock_bh(&pdev->last_real_peer_mutex);
 }
 #endif
 
@@ -2441,6 +2446,48 @@ ol_txrx_vdev_attach(ol_txrx_pdev_handle pdev,
 }
 
 /**
+ * ol_txrx_mon_cb_deregister() - Deregister pkt capture mode callback
+ * @void:
+ *
+ * Return: None
+ */
+void ol_txrx_mon_cb_deregister(void)
+{
+	ol_txrx_pdev_handle pdev = cds_get_context(QDF_MODULE_ID_TXRX);
+
+	if (qdf_unlikely(!pdev)) {
+		qdf_print("%s: pdev is NULL!\n", __func__);
+		qdf_assert(0);
+		return;
+	}
+
+	pdev->mon_osif_dev = NULL;
+	pdev->mon_cb = NULL;
+}
+
+/**
+ * ol_txrx_mon_cb_register() - Register pkt capture mode callback
+ * @osif_vdev: the virtual device's OS shim object
+ * @mon_cb: callback to register
+ *
+ * Return: None
+ */
+void ol_txrx_mon_cb_register(void *osif_vdev,
+			     ol_txrx_mon_callback_fp mon_cb)
+{
+	ol_txrx_pdev_handle pdev = cds_get_context(QDF_MODULE_ID_TXRX);
+
+	if (qdf_unlikely(!pdev)) {
+		qdf_print("%s: pdev is NULL!\n", __func__);
+		qdf_assert(0);
+		return;
+	}
+
+	pdev->mon_osif_dev = osif_vdev;
+	pdev->mon_cb = mon_cb;
+}
+
+/**
  *ol_txrx_vdev_register - Link a vdev's data object with the
  * matching OS shim vdev object.
  *
@@ -2917,8 +2964,11 @@ ol_txrx_peer_attach(ol_txrx_vdev_handle vdev, uint8_t *peer_mac_addr)
 	TAILQ_INSERT_TAIL(&vdev->peer_list, peer, peer_list_elem);
 	qdf_spin_unlock_bh(&pdev->peer_ref_mutex);
 	/* check whether this is a real peer (peer mac addr != vdev mac addr) */
-	if (ol_txrx_peer_find_mac_addr_cmp(&vdev->mac_addr, &peer->mac_addr))
+	if (ol_txrx_peer_find_mac_addr_cmp(&vdev->mac_addr, &peer->mac_addr)) {
+		qdf_spin_lock_bh(&pdev->last_real_peer_mutex);
 		vdev->last_real_peer = peer;
+		qdf_spin_unlock_bh(&pdev->last_real_peer_mutex);
+	}
 
 	peer->rx_opt_proc = pdev->rx_opt_proc;
 
@@ -3745,7 +3795,7 @@ int ol_txrx_peer_unref_delete(ol_txrx_peer_handle peer,
 		qdf_spin_unlock_bh(&pdev->peer_map_unmap_lock);
 	} else {
 		qdf_spin_unlock_bh(&pdev->peer_ref_mutex);
-		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO_HIGH,
+		QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
 			  "[%s][%d]: ref delete peer %pK peer->ref_cnt = %d",
 			  fname, line, peer, rc);
 	}
@@ -3831,10 +3881,7 @@ void peer_unmap_timer_handler(unsigned long data)
 		 peer->mac_addr.raw[4], peer->mac_addr.raw[5]);
 	if (!cds_is_driver_recovering() && !cds_is_fw_down()) {
 		wma_peer_debug_dump();
-		if (cds_is_self_recovery_enabled())
-			cds_trigger_recovery(CDS_PEER_UNMAP_TIMEDOUT);
-		else
-			QDF_BUG(0);
+		cds_trigger_recovery(CDS_PEER_UNMAP_TIMEDOUT);
 	} else {
 		WMA_LOGE("%s: Recovery is in progress, ignore!", __func__);
 	}
@@ -3871,15 +3918,12 @@ void ol_txrx_peer_detach(ol_txrx_peer_handle peer, bool start_peer_unmap_timer)
 	/* debug print to dump rx reorder state */
 	/* htt_rx_reorder_log_print(vdev->pdev->htt_pdev); */
 
-	QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_INFO,
+	QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_DEBUG,
 		   "%s:peer %pK (%02x:%02x:%02x:%02x:%02x:%02x)",
 		   __func__, peer,
 		   peer->mac_addr.raw[0], peer->mac_addr.raw[1],
 		   peer->mac_addr.raw[2], peer->mac_addr.raw[3],
 		   peer->mac_addr.raw[4], peer->mac_addr.raw[5]);
-
-	if (peer->vdev->last_real_peer == peer)
-		peer->vdev->last_real_peer = NULL;
 
 	qdf_spin_lock_bh(&vdev->pdev->last_real_peer_mutex);
 	if (vdev->last_real_peer == peer)
@@ -4766,11 +4810,13 @@ static void ol_txrx_disp_peer_stats(ol_txrx_pdev_handle pdev)
 		return;
 
 	for (i = 0; i < OL_TXRX_NUM_LOCAL_PEER_IDS; i++) {
+		qdf_spin_lock_bh(&pdev->peer_ref_mutex);
 		qdf_spin_lock_bh(&pdev->local_peer_ids.lock);
 		peer = pdev->local_peer_ids.map[i];
 		if (peer)
 			OL_TXRX_PEER_INC_REF_CNT(peer);
 		qdf_spin_unlock_bh(&pdev->local_peer_ids.lock);
+		qdf_spin_unlock_bh(&pdev->peer_ref_mutex);
 
 		if (peer) {
 			QDF_TRACE(QDF_MODULE_ID_TXRX, QDF_TRACE_LEVEL_ERROR,
@@ -5274,6 +5320,11 @@ void ol_txrx_ipa_uc_get_share_stats(ol_txrx_pdev_handle pdev,
 void ol_txrx_ipa_uc_set_quota(ol_txrx_pdev_handle pdev, uint64_t quota_bytes)
 {
 	htt_h2t_ipa_uc_set_quota(pdev->htt_pdev, quota_bytes);
+}
+
+int ol_txrx_rx_hash_smmu_map(ol_txrx_pdev_handle pdev, bool map)
+{
+	return htt_rx_hash_smmu_map_update(pdev->htt_pdev, map);
 }
 #endif /* IPA_UC_OFFLOAD */
 
@@ -6190,9 +6241,4 @@ QDF_STATUS ol_txrx_set_wisa_mode(ol_txrx_vdev_handle vdev, bool enable)
 
 	vdev->is_wisa_mode_enable = enable;
 	return QDF_STATUS_SUCCESS;
-}
-
-int ol_txrx_rx_hash_smmu_map(ol_txrx_pdev_handle pdev, bool map)
-{
-	return htt_rx_hash_smmu_map_update(pdev->htt_pdev, map);
 }
