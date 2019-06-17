@@ -176,6 +176,7 @@ static void cpuidle_idle_call(void)
 				goto exit_idle;
 			}
 		}
+
 		next_state = cpuidle_find_deepest_state(drv, dev);
 		call_cpuidle(drv, dev, next_state);
 	} else {
