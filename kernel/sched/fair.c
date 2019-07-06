@@ -11577,45 +11577,6 @@ static inline bool nohz_kick_needed(struct rq *rq, int *type)
 		return true;
 
 #ifndef CONFIG_SCHED_HMP
-	/*
-	 * None are in tickless mode and hence no need for NOHZ idle load
-	 * balancing.
-	 */
-	cpumask_andnot(&cpumask, nohz.idle_cpus_mask, cpu_isolated_mask);
-	if (cpumask_empty(&cpumask))
-		return false;
-
-	if (time_before(now, nohz.next_balance))
-		return false;
-
-	if (unlikely(rq->nr_pinned_tasks > 0)) {
-		int delta = rq->nr_running - rq->nr_pinned_tasks;
-
-		/*
-		 * Check if it is possible to "unload" this CPU in case
-		 * of having pinned/affine tasks. Do not disturb idle
-		 * core if one of the below condition is true:
-		 *
-		 * - there is one pinned task and it is not "current"
-		 * - all tasks are pinned to this CPU
-		 */
-		if (delta < 2)
-			if (current->nr_cpus_allowed > 1 || !delta)
-				return false;
-	}
-
-	/*
-	 * If energy aware is enabled, do idle load balance if runqueue has
-	 * at least 2 tasks and cpu is overutilized
-	 */
-	if (rq->nr_running >= 2 &&
-	    (!energy_aware() || cpu_overutilized(cpu)))
-		return true;
-
-	if (energy_aware())
-		return false;
-
->>>>>>> 2ab1b53... sched/fair: Only kick nohz balance when runqueue has more than 1 task
 	rcu_read_lock();
 	sd = rcu_dereference(per_cpu(sd_busy, cpu));
 	if (sd) {
